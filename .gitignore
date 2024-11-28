@@ -106,7 +106,7 @@ dist
 /directories
 
 #Node Modules
-/node_modules
+node_modules
 
 #ENV
 .env
