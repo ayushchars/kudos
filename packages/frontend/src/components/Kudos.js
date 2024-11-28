@@ -19,8 +19,16 @@ function Kudos() {
 
   const getAllUser = async () => {
     try {
-      const response = await axios.get(`${process.env.REACT_APP_BASEURL}/auth/getAllUser`);
-
+      const token = localStorage.getItem('token'); 
+      const response = await axios.get(
+        `${process.env.REACT_APP_BASEURL}/auth/getAllUser`,
+        {
+          headers: {
+            Authorization: `${token}`,
+          },
+        }
+      );
+  
       const resData = response.data;
       if (resData.status === 1) {
         setUsers(resData.data);
@@ -29,6 +37,7 @@ function Kudos() {
       console.error('Error fetching users:', err);
     }
   };
+  
 
   const handleSubmit = async () => {
     const from = localStorage.getItem('user');

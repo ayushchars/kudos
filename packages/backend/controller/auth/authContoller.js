@@ -1,9 +1,7 @@
-import { compairPassword, hashPassword } from "../../helpers/authHelper.js";
 import userModel from "../../models/userModel.js";
 import Jwt from "jsonwebtoken";
 import {
   ErrorResponse,
-  successResponse,
   notFoundResponse,
   successResponseWithData
 } from "../../helpers/apiResponse.js";
@@ -25,45 +23,32 @@ export const registerControllar = async (req, res) => {
     return successResponseWithData(res, "User registered successfully", user);
   } catch (err) {
     console.error(err);
-    return res.status(500).send({
-      success: false,
-      message: "Error while registering",
-      err,
-    });
+    return ErrorResponse(res, "Error while registering");
+    
   }
 };
 
 export const loginControllar = async (req, res) => {
   try {
     const { name, email } = req.body;
-
     if (!name) {
       return notFoundResponse(res, "Name is required");
     }
-
-    // Find all users with the given name
     const usersWithSameName = await userModel.find({ name });
-
     if (usersWithSameName.length === 0) {
       return notFoundResponse(res, "User not found");
     }
-
     let user;
-
     if (usersWithSameName.length === 1) {
-      // Single user found, authenticate by name only
       user = usersWithSameName[0];
     } else {
-      // Multiple users with the same name, require email for login
       if (!email) {
         return notFoundResponse(
           res,
           "Multiple users found with the same name. Email is required"
         );
       }
-
       user = usersWithSameName.find((u) => u.email === email);
-
       if (!user) {
         return notFoundResponse(
           res,
@@ -95,27 +80,25 @@ export const loginControllar = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).send({
-      success: false,
-      message: "Error while logging in",
-    });
+    return ErrorResponse(res, "Error while login");
   }
 };
 
 export const getAllUsers = async (req, res) => {
   try {
-    const users = await userModel.find(); 
-    if (!users || users.length === 0) {
+   
+    const loggedInUserId = req.user._id;
+
+    const users = await userModel.find({ _id: { $ne: loggedInUserId } });
+
+    if (users.length === 0) {
       return notFoundResponse(res, "No users found");
     }
 
-    return successResponseWithData(res, "Users fetched successfully", users);
+    return successResponseWithData(res, "Users found successfully", users);
   } catch (error) {
     console.error(error);
-    return res.status(500).send({
-      success: false,
-      message: "Error while fetching users",
-      error,
-    });
+    return ErrorResponse(res, "Error while feaching user detail");
+ 
   }
 };
