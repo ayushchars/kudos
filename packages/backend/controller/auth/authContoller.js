@@ -15,13 +15,11 @@ export const registerControllar = async (req, res) => {
       return ErrorResponse(res, "Name and Email are required");
     }
 
-    // Check if user already exists
     const existingUser = await userModel.findOne({ email });
     if (existingUser) {
       return ErrorResponse(res, "User already exists");
     }
 
-    // Save the user
     const user = await new userModel({ name, email }).save();
 
     return successResponseWithData(res, "User registered successfully", user);
@@ -35,23 +33,45 @@ export const registerControllar = async (req, res) => {
   }
 };
 
-
 export const loginControllar = async (req, res) => {
   try {
     const { name, email } = req.body;
 
-    if (!name && !email) {
-      return notFoundResponse(res, "Name or Email is required");
+    if (!name) {
+      return notFoundResponse(res, "Name is required");
     }
 
-    // Find user by name or email
-    const user = await userModel.findOne({ $or: [{ name }, { email }] });
+    // Find all users with the given name
+    const usersWithSameName = await userModel.find({ name });
 
-    if (!user) {
+    if (usersWithSameName.length === 0) {
       return notFoundResponse(res, "User not found");
     }
 
-    // Generate token
+    let user;
+
+    if (usersWithSameName.length === 1) {
+      // Single user found, authenticate by name only
+      user = usersWithSameName[0];
+    } else {
+      // Multiple users with the same name, require email for login
+      if (!email) {
+        return notFoundResponse(
+          res,
+          "Multiple users found with the same name. Email is required"
+        );
+      }
+
+      user = usersWithSameName.find((u) => u.email === email);
+
+      if (!user) {
+        return notFoundResponse(
+          res,
+          "No user found with the provided name and email combination"
+        );
+      }
+    }
+
     const additionalData = {
       role: user.role,
       email: user.email,
@@ -81,33 +101,7 @@ export const loginControllar = async (req, res) => {
     });
   }
 };
-export const getUser = async (req, res) => {
-  try {
-    const { id, name, email } = req.query; 
 
-    if (!id && !name && !email) {
-      return notFoundResponse(res, "At least one of ID, Name, or Email is required");
-    }
-
-    // Find user by id, name, or email
-    const user = await userModel.findOne({
-      $or: [{ _id: id }, { name }, { email }],
-    });
-
-    if (!user) {
-      return notFoundResponse(res, "User not found");
-    }
-
-    return successResponseWithData(res, "User fetched successfully", user);
-  } catch (error) {
-    console.error(error);
-    return res.status(500).send({
-      success: false,
-      message: "Error while fetching user",
-      error,
-    });
-  }
-};
 export const getAllUsers = async (req, res) => {
   try {
     const users = await userModel.find(); 

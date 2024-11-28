@@ -18,6 +18,11 @@ const KudosSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    likedby: {
+      type: [mongoose.Schema.Types.ObjectId], 
+      ref: "Users",
+      default: [],
+    },
   },
   { timestamps: true }
 );

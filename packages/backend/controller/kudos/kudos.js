@@ -1,13 +1,14 @@
 import express from "express"
-import {sendKudos,getKudosAnalytics,getKudosTrends,getKudosAnalyticsByUser} from "./kudosController.js"
+import {sendKudos ,getKudosAnalytics,getKudosFeed,likeKudos,getLikedKudos} from "./kudosController.js"
 
 const router = express.Router()
 router.post("/sendkudos", sendKudos)
+router.get("/analytics" , getKudosAnalytics)
+router.get("/getKudosFeed" , getKudosFeed)
+router.post("/getLikedKudos" , getLikedKudos)
+router.post("/likeKudos" , likeKudos)
 
-// router.post("/getkudos" , fetchUserKudos)
-router.get("/getKudosAnalytics" , getKudosAnalytics)
-router.get("/getKudosTrends" , getKudosTrends)
-router.get("/analytics/:userId" , getKudosAnalyticsByUser)
+
 
 
 export default router

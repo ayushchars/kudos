@@ -58,28 +58,63 @@ export const sendKudos = async (req, res) => {
     }
   };
 
-
-export const getKudosAnalytics = async (req, res) => {
+  export const getKudosAnalytics = async (req, res) => {
     try {
-      const totalKudosSent = await KudosModel.countDocuments();
-      const topUsers = await KudosModel.aggregate([
+      const totalKudos = await KudosModel.countDocuments();
+  
+      const badgeAggregation = await KudosModel.aggregate([
+        {
+          $group: {
+            _id: "$badges",
+            count: { $sum: 1 },
+          },
+        },
+      ]);
+      const badges = badgeAggregation.reduce((acc, badge) => {
+        if (badge._id) {
+          acc[badge._id] = badge.count;
+        }
+        return acc;
+      }, {});
+  
+      const receiverAggregation = await KudosModel.aggregate([
         {
           $group: {
             _id: "$to",
-            kudosReceived: { $sum: 1 },
+            count: { $sum: 1 },
           },
         },
-        { $sort: { kudosReceived: -1 } },
-        { $limit: 5 },
-      ]).exec();
-      
-      const topUsersWithDetails = await userModel.find({
-        _id: { $in: topUsers.map((user) => user._id) },
-      }).select("name email");
-      
+        {
+          $lookup: {
+            from: "users",
+            localField: "_id",
+            foreignField: "_id",
+            as: "userDetails",
+          },
+        },
+        {
+          $unwind: "$userDetails",
+        },
+        {
+          $project: {
+            name: "$userDetails.name",
+            count: 1,
+          },
+        },
+      ]);
+  
+      const sortedReceivers = receiverAggregation
+        .sort((a, b) => b.count - a.count)
+        .reduce((acc, receiver) => {
+          acc[receiver.name] = receiver.count;
+          return acc;
+        }, {});
+  
+  
       return successResponseWithData(res, "Kudos analytics fetched successfully", {
-        totalKudosSent,
-        topUsers: topUsersWithDetails,
+        totalKudos,
+        badges,
+        receivers: sortedReceivers, 
       });
     } catch (err) {
       console.error(err);
@@ -87,80 +122,81 @@ export const getKudosAnalytics = async (req, res) => {
     }
   };
   
-  export const getKudosTrends = async (req, res) => {
+  export const getKudosFeed = async (req, res) => {
     try {
-      const trends = await KudosModel.aggregate([
-        {
-          $group: {
-            _id: {
-              $dateToString: { format: "%Y-%m-%d", date: "$createdAt" },
-            },
-            count: { $sum: 1 },
-          },
-        },
-        { $sort: { _id: 1 } }, 
-      ]);
+      const kudosFeed = await KudosModel.find({})
+        .populate("from", "name email") 
+        .populate("to", "name email");  
   
-      return successResponseWithData(res, "Kudos trends fetched successfully", {
-        trends,
-      });
+      const feed = kudosFeed.map((kudo) => ({
+        id: kudo._id,
+        sender: kudo.from.name, 
+        receiver: kudo.to.name,
+        badge: kudo.badges,
+        message: kudo.message,
+        likeCount: kudo.likedby.length,
+      }));
+
+      feed.sort((a, b) => b.likeCount - a.likeCount);
+      return successResponseWithData(res, "Kudos feed fetched successfully", feed);
     } catch (err) {
       console.error(err);
-      return ErrorResponse(res, "Error while fetching kudos trends");
+      return ErrorResponse(res, "Error while fetching kudos feed");
+    }
+  };
+  export const likeKudos = async (req, res) => {
+    try {
+      const { kudoId, userId, like } = req.body;
+
+      if (!kudoId || !userId || typeof like !== 'boolean') {
+        return ErrorResponse(res, "kudoId, userId, and like (boolean) are required");
+      }
+  
+      const kudo = await KudosModel.findById(kudoId);
+      if (!kudo) {
+        return notFoundResponse(res, `Kudo with ID '${kudoId}' not found`);
+      }
+
+      if (like) {
+        if (!kudo.likedby.includes(userId)) {
+          kudo.likedby.push(userId);
+          await kudo.save();
+        } else {
+          return ErrorResponse(res, "You have already liked this kudo");
+        }
+      } else {
+        await KudosModel.updateOne(
+          { _id: kudoId },
+          { $pull: { likedby: userId } }
+        );
+      }
+  
+      return successResponse(res, `Kudo ${like ? "liked" : "unliked"} successfully`);
+    } catch (err) {
+      console.error(err);
+      return ErrorResponse(res, "Error while updating the kudo like status");
     }
   };
   
-  export const getKudosAnalyticsByUser = async (req, res) => {
+  export const getLikedKudos = async (req, res) => {
     try {
-      const { userId } = req.params;
+      const { userId } = req.body; 
   
       if (!userId) {
         return ErrorResponse(res, "User ID is required");
       }
+      const likedKudos = await KudosModel.find({ likedby: userId })
+      .select("-likedby")
+        .populate("from", "name email") 
+        .populate("to", "name email");
   
-      const user = await userModel.findById(userId);
-      if (!user) {
-        return notFoundResponse(res, `User with ID '${userId}' not found`);
+      if (!likedKudos || likedKudos.length === 0) {
+        return successResponseWithData(res, "No liked kudos found", []);
       }
   
-      const totalKudosSent = await KudosModel.countDocuments({ from: userId });
-      const totalKudosReceived = await KudosModel.countDocuments({ to: userId });
-  
-      const receivedKudos = await KudosModel.find({ to: userId });
-  
-      const badgeCount = receivedKudos.reduce((acc, kudos) => {
-        if (kudos.badges) {
-          if (acc[kudos.badges]) {
-            acc[kudos.badges]++;
-          } else {
-            acc[kudos.badges] = 1;
-          }
-        }
-        return acc;
-      }, {});
-  
-      const senders = {};
-      for (const kudos of receivedKudos) {
-        const sender = await userModel.findById(kudos.from);
-        if (sender) {
-          const senderName = sender.name;
-          if (senders[senderName]) {
-            senders[senderName]++;
-          } else {
-            senders[senderName] = 1;
-          }
-        }
-      }
-  
-      return successResponseWithData(res, "User-specific kudos analytics fetched successfully", {
-        totalKudosSent,
-        totalKudosReceived,
-        badges: badgeCount,
-        senders,
-      });
+      return successResponseWithData(res, "Liked kudos fetched successfully", likedKudos);
     } catch (err) {
       console.error(err);
-      return ErrorResponse(res, "Error while fetching user-specific kudos analytics");
+      return ErrorResponse(res, "Error while fetching liked kudos");
     }
   };
-  
