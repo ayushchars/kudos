@@ -54,10 +54,12 @@ function DashBoard() {
     }
   };
 
+  const username = localStorage.getItem("usename")
+
   const navigate = useNavigate();
   return (
     <div className="min-h-screen bg-gray-100 p-4">
-      <h1 className="text-xl font-bold text-gray-800 mb-4">Welcome, Ayush!</h1>
+      <h1 className="text-xl font-bold text-gray-800 mb-4">Welcome, {username}!</h1>
 
       <div className="mb-6">
         <button

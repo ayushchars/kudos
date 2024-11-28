@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import {  Routes, Route, useNavigate } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import Login from '../components/login';
 import SignUp from '../components/signUp';
 import DashBord from '../components/dashBord';
@@ -7,15 +7,16 @@ import Kudos from '../components/Kudos';
 import Analytics from '../components/analytics';
 
 function Routing() {
-  const navigate = useNavigate(); 
-  
+  const navigate = useNavigate();
+  const location = useLocation();
   const token = localStorage.getItem("token");
 
   useEffect(() => {
-    if (!token) {
+    const publicRoutes = ['/', '/Signup'];
+    if (!token && !publicRoutes.includes(location.pathname)) {
       navigate('/');
     }
-  }, [token]);
+  }, [token, location.pathname, navigate]);
 
   return (
     <Routes>
@@ -28,4 +29,4 @@ function Routing() {
   );
 }
 
-export default Routing
+export default Routing;
